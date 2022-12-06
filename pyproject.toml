@@ -1,0 +1,7 @@
+[tool.pylint.'MESSAGES CONTROL']
+disable = "no-member,too-many-instance-attributes"
+enable = "c-extension-no-member"
+good-names = "ax,im,i,j,x,y"
+
+[tool.black]
+line-length = 90

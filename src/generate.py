@@ -12,17 +12,15 @@ Available in references.md
 
 Copyright © 2022 Giuliano Ruggeri
 """
-# pylint: disable=no-member
 import numpy as np
 import numpy.typing as npt
 import matplotlib.pyplot as plt
 
 
-# pylint: disable=invalid-name
 def fig_daily_avg(data: npt.NDArray[np.float32]):
     """Generate figure with daily averages."""
-    _, ax = plt.subplots()
-    x = np.arange(365, dtype=np.int32)
+    _fig, ax = plt.subplots()
+    x = np.arange(1, 366, dtype=np.int32)
     ax.set_title("Energiförbrukning per dygn")
     ax.set_ylabel("kWh")
     ax.set_xlabel("Dygn")
@@ -33,60 +31,84 @@ def fig_daily_avg(data: npt.NDArray[np.float32]):
     ax.plot(x, data, linewidth=1, color="blue", label="medelvärde")
 
 
-# pylint: disable=invalid-name
-def fig_monthly_avg_vs_total(
-    data_avg: npt.NDArray[np.float32], data_tot: npt.NDArray[np.float32]
-):
-    """Generate monthly average vs total."""
+def fig_monthly_total(data: npt.NDArray[np.float32]):
+    """Generate monthly total."""
 
     x = np.arange(12, dtype=np.int32)
-    _, ax = plt.subplots()
+    _fig, ax = plt.subplots()
 
-    ax.set_title("Elförbrukning total och medelvärde per månad")
+    ax.set_title("Elförbrukning total per månad")
     ax.set_xlabel("Månad")
     ax.set_ylabel("kWh")
 
-    ax.fill_between(x, data_avg, data_tot, alpha=0.5, linewidth=0)
-    ax.set_yscale("log")
-    ax.plot(x, data_tot, linewidth=2, color="red", label="total")
-    ax.plot(x, data_avg, linewidth=2, color="blue", label="medelvärde")
-    ax.plot(x, data_tot / data_avg, linewidth=2, color="green", label="kvotient")
-    ax.legend()
+    ax.plot(x, data, linewidth=2, color="red")
 
 
-# pylint: disable=invalid-name
-def fig_period_by_days(data: npt.NDArray[np.float32]):
-    """Generate daily consumption averaged weekly and monthly."""
-    weeks_by_days = np.empty(shape=(52, 7))
-    months_by_days = np.empty(shape=(12, 30))
-    # Get a 52 x 7 matrix
-    for index, start_day in enumerate(range(0, 364, 7)):
-        weeks_by_days[index] = data[start_day : start_day + 7]
+def fig_monthly_avg(data: npt.NDArray[np.float32]):
+    """Generate monthly average."""
 
-    # Get a 12 x 30 matrix
-    for index, start_day in enumerate(range(0, 360, 30)):
-        months_by_days[index] = data[start_day : start_day + 30]
+    x = np.arange(12, dtype=np.int32)
+    _fig, ax = plt.subplots()
 
-    fig_weeks, ax_weeks = plt.subplots()
-    ax_weeks.set_xlabel("dygn")
-    ax_weeks.set_ylabel("vecka")
-    ax_weeks.set_title("Dagsförbrukning alla veckor")
+    ax.set_title("Elförbrukning avg per månad")
+    ax.set_xlabel("Månad")
+    ax.set_ylabel("kWh")
 
-    im_weeks = ax_weeks.pcolormesh(weeks_by_days)
-    fig_weeks.colorbar(im_weeks, ax=ax_weeks, label="kWh")
-    ax_weeks.legend()
-
-    fig_months, ax_months = plt.subplots()
-    ax_months.set_xlabel("dygn")
-    ax_months.set_ylabel("månad")
-    ax_months.set_title("Dagsförbrukning alla månader")
-
-    im = ax_months.pcolormesh(months_by_days)
-    fig_months.colorbar(im, ax=ax_months, label="kWh")
-    ax_months.legend()
+    ax.plot(x, data, linewidth=2, color="blue")
 
 
-# pylint: disable=invalid-name
+def fig_days_over_interval(steps: int, data: npt.NDArray[np.float32]):
+    """Generate average daily consumption over interval."""
+    days = 365 // steps  # matrix rows
+    interval_by_days = np.empty(shape=(steps, days))  # matrix columns
+
+    # Fill a row x column matrix
+    for index, start_day in enumerate(range(0, days * steps, days)):
+        interval_by_days[index] = data[start_day: start_day + days]
+
+    fig, ax = plt.subplots()
+    ax.set_xlabel("dygn")
+    label = "månad" if days == 30 else "vecka"
+    ax.set_ylabel(label)
+    ax.set_title(f"Förbrukning dag i {label}")
+
+    im = ax.pcolormesh(interval_by_days)
+    fig.colorbar(im, ax=ax, label="kWh")
+
+
+def fig_compare_interval_by_week(data: npt.NDArray[np.float32]):
+    """Generate comparison of each interval by it's steps."""
+    _fig, ax = plt.subplots()
+    ax.set_ylabel("kWh")
+    ax.set_xlabel("vecka")
+    ax.set_title("Förbrukning för alla veckor (total)")
+    ax.bar(range(1, 53), data, width=1, edgecolor="white", linewidth=1)
+    ax.set(xticks=range(4, 53, 4))
+
+
+def fig_compare_interval_by_month(data: npt.NDArray[np.float32]):
+    """Generate comparison of each interval by it's steps."""
+    _fig, ax = plt.subplots()
+    ax.set_ylabel("kWh")
+    ax.set_xlabel("månad")
+    ax.set_title("Förbrukning för alla månader (total)")
+    ax.bar(range(1, 13), data, edgecolor="white", width=1, linewidth=1)
+    ax.set(xticks=range(3, 13, 3))
+
+
+def fig_temp_diff_stackplot(data: npt.NDArray[np.float32]):
+    """Generate stackplot comparing temperature differences."""
+    x = np.arange(len(data[0]))
+    y = np.vstack(data)
+
+    _fig, ax = plt.subplots()
+    ax.set_xlabel("månad")
+    ax.set_ylabel("kWh")
+    ax.set_title("Månadsförbrukning för olika temperaturer (fjärrvärme)")
+    ax.stackplot(x, y, labels=[str(i) + " °C" for i in range(20, 25)])
+    ax.legend(loc="lower right")
+
+
 def fig_differences_house_size(
     data_small: npt.NDArray[np.float32],
     data_medium: npt.NDArray[np.float32],
@@ -102,11 +124,9 @@ def fig_differences_house_size(
         time_period = "dygn"
 
     x = np.arange(len(data_small), dtype=np.int32)
-    _, ax = plt.subplots()
+    _fig, ax = plt.subplots()
 
-    ax.set_title(
-        f"Elförbrukning - skillnader i hus storlek (Samma temperatur) per {time_period}"
-    )
+    ax.set_title(f"Skillnader i förbrukning(Samma temp, fjärrvärme) per {time_period}")
     ax.set_xlabel(time_period)
     ax.set_ylabel("kWh")
 
@@ -114,3 +134,4 @@ def fig_differences_house_size(
     ax.plot(x, data_small, linewidth=2, color="blue", label="små hus")
     ax.plot(x, data_medium, linewidth=2, color="green", label="medium hus")
     ax.plot(x, data_large, linewidth=2, color="red", label="stor hus")
+    ax.legend(loc="center right")

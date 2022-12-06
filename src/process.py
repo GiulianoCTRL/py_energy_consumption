@@ -12,7 +12,6 @@ Available in references.md
 
 Copyright © 2022 Giuliano Ruggeri
 """
-# pylint: disable=no-member
 from dataclasses import dataclass, field, InitVar
 from enum import Enum
 import pathlib
@@ -21,7 +20,7 @@ from typing import List, Tuple
 
 import numpy as np
 import numpy.typing as npt
-import pandas as pd  # pylint: disable=import-error
+import pandas as pd
 
 
 class HouseSize(Enum):
@@ -41,19 +40,24 @@ class House:
 
     size: HouseSize
     temp: InitVar[np.float32] = 0.0
+    district_heating: InitVar[bool] = False
     energy_consumption_yearly: np.float32 = field(init=False)
     energy_consumption_by_month: npt.NDArray[np.float32] = field(init=False)
     energy_consumption_by_week: npt.NDArray[np.float32] = field(init=False)
     energy_consumption_by_day: npt.NDArray[np.float32] = field(init=False)
 
-    def __post_init__(self, temp):
+    def __post_init__(self, temp, district_heating):
         """Randomize temperature range and type of heating used for each house."""
         # Properties with district heating [1]
         w_dist_heating = 4000.0
         # All households in Sundsvall [4] ansuming that about 20% of the population
-        # live in central Sundsvall or apartments and therefore count as less properties
+        # live in central Sundsvall [2]or apartments and therefore count as less properties
         p_sundsvall = 48137.0 * 0.8
-        district_heating = bool(random.random() <= (w_dist_heating / p_sundsvall))
+        district_heating = (
+            True
+            if district_heating
+            else bool(random.random() <= (w_dist_heating / p_sundsvall))
+        )
         if not temp:
             temp = np.random.uniform(20.0, 25.0)
         self.energy_consumption_yearly = self._energy_consumption_yearly(
@@ -74,12 +78,13 @@ class House:
         """
         # District heating saves up to 75% of the consumed energy
         # (in comparison to heating through direct electricity) [3]
-        # Formula for energy consumption by size and heating type [5]
+        # Formula for energy consumption by size and heating type [5][7]
         yearl_energy_consumption = self.size.value * (40.0 if district_heating else 120.0)
         # Energy consumption can be decreased/incread by 5% per 1°C deviation 21 °C [6]
-        # pylint: disable=line-too-long
-        yearl_energy_consumption += yearl_energy_consumption * (0.05 * (temp - 21.0))  # type: ignore
-        return np.float32(yearl_energy_consumption)
+        percent: np.float32 = 0.05
+        temp_limit: np.float32 = 21.0
+        variation = yearl_energy_consumption * (percent * (temp - temp_limit))
+        return np.float32(yearl_energy_consumption + variation)
 
     def _energy_consumption_by_time_frame(
         self,
@@ -103,15 +108,18 @@ class House:
             last_day_of_month = current_day + days
 
             energy_consumption_by_month[month] = sum(
-                energy_consumption_by_day[current_day : current_day + days]
+                energy_consumption_by_day[current_day: current_day + days]
             )
 
             current_day = last_day_of_month
-        for week in range(52):
+
+        for week, start_day in enumerate(range(0, 364, 7)):
             energy_consumption_by_week[week] = sum(
-                energy_consumption_by_day[week : week + 7]
+                energy_consumption_by_day[start_day: start_day + 7]
             )
-        energy_consumption_by_week[-1] += energy_consumption_by_day[364]
+        # Spread value of last day of the year across all weeks as 365 / 7 has a rest of 1
+        energy_consumption_by_week += energy_consumption_by_day[364] / 52
+
         return (
             np.array(energy_consumption_by_day, dtype=np.float32),
             energy_consumption_by_week,
@@ -119,7 +127,6 @@ class House:
         )
 
 
-# pylint: disable=too-many-instance-attributes
 @dataclass
 class Area:
     """Energy consumption for specific Area."""
@@ -167,7 +174,12 @@ class Area:
 
 
 def _get_csv_data():
-    """Process sunhours csv file."""
+    """
+    Process sunhours csv file. The file contains day, sunrise, sunset,
+    if summertime, total hours with sunlight, total hours without sunlight.
+    The data within comes from source [8] and has been slightly processed
+    (Day of month to day of year).
+    """
     data = pd.read_csv(pathlib.Path("sunhours.csv"), usecols=[1, 2, 3, 4, 5])
     data["Daytime"] = np.dot(
         np.array(data.Daytime.str.findall("[0-9]+").tolist()).astype(int), [60, 1]
@@ -178,17 +190,14 @@ def _get_csv_data():
     return data
 
 
-# pylint: disable=invalid-name
 def day_algorithm(
     yearly_cons: np.float32, sun_data: pd.DataFrame
 ) -> npt.NDArray[np.float32]:
     """Calculate energy consumption per day from total yearly consumption."""
     total_yearly_nighttime = sun_data["Nighttime"].sum()
     nighttime_per_day = sun_data["Nighttime"].to_numpy(dtype=np.float32)
-    modifiers = (
-        nighttime_per_day * 10 / total_yearly_nighttime
-    )  # [i * 10 / total_yearly_nighttime for i in nighttime_per_day]
-    vector = np.random.uniform(0.99, 1.01, size=(365)) + modifiers
+    modifiers = nighttime_per_day * 10 / total_yearly_nighttime
+    vector = np.random.uniform(0.98, 1.02, size=(365)) + modifiers
     normalized_vector = vector / np.linalg.norm(vector)
     # Sum of squared values in a normalized vector is = 1
     normalized_squared = normalized_vector**2 * yearly_cons
