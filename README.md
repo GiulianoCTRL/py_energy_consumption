@@ -1,3 +1,14 @@
+### Genereal
+This project has been created for the whole purpose of generating figures and diagrams for a
+specified area in Sundsvall, Sweden (postal 85634). All data within this project is available
+at the below sources and is also referenced in the projects source code.
+
+Additionally, this is a general purpose estimation.
+
+If this code might be intresting to you, feel free to contact me about eventual usage of it.
+
+License: TBD
+
 ### References
 
 | Identifier | Author | Titel | Company | Date created | Type | Available | Accessed |

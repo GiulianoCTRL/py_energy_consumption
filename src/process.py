@@ -9,8 +9,6 @@ It contains functions and classes to process the incoming data.
 
 References:
 Available in references.md
-
-Copyright © 2022 Giuliano Ruggeri
 """
 from dataclasses import dataclass, field, InitVar
 from enum import Enum

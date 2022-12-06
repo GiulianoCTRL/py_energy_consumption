@@ -9,8 +9,6 @@ It contains functions to generate graphs necessary for the report.
 
 References:
 Available in references.md
-
-Copyright © 2022 Giuliano Ruggeri
 """
 import numpy as np
 import numpy.typing as npt

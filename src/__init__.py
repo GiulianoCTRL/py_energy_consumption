@@ -7,6 +7,4 @@ course W0021T - Mekanik och Elkraftteknik.
 
 References:
 Available in references.md
-
-Copyright © 2022 Giuliano Ruggeri
 """
