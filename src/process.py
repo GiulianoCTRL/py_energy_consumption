@@ -106,14 +106,14 @@ class House:
             last_day_of_month = current_day + days
 
             energy_consumption_by_month[month] = sum(
-                energy_consumption_by_day[current_day: current_day + days]
+                energy_consumption_by_day[current_day : current_day + days]
             )
 
             current_day = last_day_of_month
 
         for week, start_day in enumerate(range(0, 364, 7)):
             energy_consumption_by_week[week] = sum(
-                energy_consumption_by_day[start_day: start_day + 7]
+                energy_consumption_by_day[start_day : start_day + 7]
             )
         # Spread value of last day of the year across all weeks as 365 / 7 has a rest of 1
         energy_consumption_by_week += energy_consumption_by_day[364] / 52
