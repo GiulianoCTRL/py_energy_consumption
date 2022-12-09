@@ -30,6 +30,83 @@ class HouseSize(Enum):
 
 
 @dataclass
+class StreetLights:
+    """
+    Estimate power consumption of LED, natrium and mercury street lights.
+    """
+
+    n_lamps: InitVar[int]
+    sun_data: InitVar[pd.DataFrame]
+    street_light_led_by_day: npt.NDArray[np.float32] = field(init=False)
+    street_light_natrium_by_day: npt.NDArray[np.float32] = field(init=False)
+    street_light_mercury_by_day: npt.NDArray[np.float32] = field(init=False)
+    street_light_led_by_week: npt.NDArray[np.float32] = field(init=False)
+    street_light_natrium_by_week: npt.NDArray[np.float32] = field(init=False)
+    street_light_mercury_by_week: npt.NDArray[np.float32] = field(init=False)
+    street_light_led_by_month: npt.NDArray[np.float32] = field(init=False)
+    street_light_natrium_by_month: npt.NDArray[np.float32] = field(init=False)
+    street_light_mercury_by_month: npt.NDArray[np.float32] = field(init=False)
+    street_light_led_yearly: np.float32 = field(init=False)
+    street_light_natrium_yearly: np.float32 = field(init=False)
+    street_light_mercury_yearly: np.float32 = field(init=False)
+
+    def __post_init__(self, sun_data: pd.DataFrame, n_lamps: int):
+        """Estimate street light power consumption."""
+        night_hours_by_day = sun_data["Nighttime"].to_numpy(dtype=np.float32) / 60.0
+        led_cons: np.float32 = 0.05 * n_lamps  # type: ignore
+        natrium_cons: np.float32 = 0.25 * n_lamps  # type: ignore
+        mercury_cons: np.float32 = 1.00 * n_lamps  # type: ignore
+        self.street_light_led_by_day = night_hours_by_day * led_cons
+        self.street_light_natrium_by_day = night_hours_by_day * natrium_cons
+        self.street_light_mercury_by_day = night_hours_by_day * mercury_cons
+        (
+            self.street_light_led_by_week,
+            self.street_light_led_by_month,
+        ) = energy_by_interval(self.street_light_led_by_day)
+        (
+            self.street_light_natrium_by_week,
+            self.street_light_natrium_by_month,
+        ) = energy_by_interval(self.street_light_natrium_by_day)
+        (
+            self.street_light_mercury_by_week,
+            self.street_light_mercury_by_month,
+        ) = energy_by_interval(self.street_light_mercury_by_day)
+        self.street_light_led_yearly = self.street_light_led_by_day.sum()
+        self.street_light_natrium_yearly = self.street_light_natrium_by_day.sum()
+        self.street_light_mercury_yearly = self.street_light_mercury_by_day.sum()
+
+
+@dataclass
+class SolarPanels:
+    """
+    Power generation and consumption for solar panels, electric vehicles and
+    street lights.
+    """
+
+    n_solar_5_panels: InitVar[int]
+    n_solar_15_panels: InitVar[int]
+    sun_data: InitVar[pd.DataFrame]
+    solar_energy_generation_by_day: npt.NDArray[np.float32] = field(init=False)
+    solar_energy_generation_by_week: npt.NDArray[np.float32] = field(init=False)
+    solar_energy_generation_by_month: npt.NDArray[np.float32] = field(init=False)
+    solar_energy_generation_yearly: np.float32 = field(init=False)
+
+    def __post_init__(
+        self, sun_data: pd.DataFrame, n_solar_5_panels: int, n_solar_15_panels: int
+    ):
+        """Estimate solar power production."""
+        sun_hours_by_day = sun_data["Daytime"].to_numpy(dtype=np.float32) / 60.0
+        self.solar_energy_generation_by_day = sun_hours_by_day * (
+            5.0 * n_solar_5_panels + 15.0 * n_solar_15_panels
+        )
+        (
+            self.solar_energy_generation_by_week,
+            self.solar_energy_generation_by_month,
+        ) = energy_by_interval(self.solar_energy_generation_by_day)
+        self.solar_energy_generation_by_yearly = self.solar_energy_generation_by_day.sum()
+
+
+@dataclass
 class House:
     """
     General information needed to calculate energy consumption for each individuell
@@ -37,6 +114,7 @@ class House:
     """
 
     size: HouseSize
+    sun_data: InitVar[pd.DataFrame]
     temp: InitVar[np.float32] = 0.0
     district_heating: InitVar[bool] = False
     energy_consumption_yearly: np.float32 = field(init=False)
@@ -44,7 +122,9 @@ class House:
     energy_consumption_by_week: npt.NDArray[np.float32] = field(init=False)
     energy_consumption_by_day: npt.NDArray[np.float32] = field(init=False)
 
-    def __post_init__(self, temp, district_heating):
+    def __post_init__(
+        self, sun_data: pd.DataFrame, temp: np.float32, district_heating: bool
+    ):
         """Randomize temperature range and type of heating used for each house."""
         # Properties with district heating [1]
         w_dist_heating = 4000.0
@@ -56,14 +136,20 @@ class House:
             if district_heating
             else bool(random.random() <= (w_dist_heating / p_sundsvall))
         )
-        if not temp:
-            temp = np.random.uniform(20.0, 25.0)
+        if not temp and not district_heating:
+            temp = np.random.uniform(20.0, 25.0)  # type: ignore
+        # If district heating room temperature is not affecting consumption
+        elif not temp and district_heating:
+            temp: np.float32 = 21.0
+
         self.energy_consumption_yearly = self._energy_consumption_yearly(
             temp,
             district_heating,
         )
-        cons_day, cons_week, cons_month = self._energy_consumption_by_time_frame()
-        self.energy_consumption_by_day = cons_day
+        self.energy_consumption_by_day = day_algorithm(
+            self.energy_consumption_yearly, sun_data
+        )
+        cons_week, cons_month = energy_by_interval(self.energy_consumption_by_day)
         self.energy_consumption_by_week = cons_week
         self.energy_consumption_by_month = cons_month
 
@@ -79,50 +165,10 @@ class House:
         # Formula for energy consumption by size and heating type [5][7]
         yearl_energy_consumption = self.size.value * (40.0 if district_heating else 120.0)
         # Energy consumption can be decreased/incread by 5% per 1°C deviation 21 °C [6]
-        percent: np.float32 = 0.05
-        temp_limit: np.float32 = 21.0
-        variation = yearl_energy_consumption * (percent * (temp - temp_limit))
+        percent: np.float32 = 0.05  # type: ignore
+        avg_room_temp: np.float32 = 21.0  # type: ignore
+        variation = yearl_energy_consumption * (percent * (temp - avg_room_temp))
         return np.float32(yearl_energy_consumption + variation)
-
-    def _energy_consumption_by_time_frame(
-        self,
-    ) -> Tuple[npt.NDArray[np.float32], npt.NDArray[np.float32], npt.NDArray[np.float32]]:
-        """Calculate energy consumption for each day."""
-        sun_data = _get_csv_data()
-        energy_consumption_by_day = day_algorithm(
-            self.energy_consumption_yearly, sun_data
-        )
-        days_31 = [0, 2, 4, 6, 7, 9, 11]
-        days_30 = [3, 5, 8, 10]
-        energy_consumption_by_week = np.empty(shape=(52), dtype=np.float32)
-        energy_consumption_by_month = np.empty(shape=(12), dtype=np.float32)
-        current_day = 0
-        for month in range(12):
-            days = 28
-            if month in days_31:
-                days = 31
-            elif month in days_30:
-                days = 30
-            last_day_of_month = current_day + days
-
-            energy_consumption_by_month[month] = sum(
-                energy_consumption_by_day[current_day : current_day + days]
-            )
-
-            current_day = last_day_of_month
-
-        for week, start_day in enumerate(range(0, 364, 7)):
-            energy_consumption_by_week[week] = sum(
-                energy_consumption_by_day[start_day : start_day + 7]
-            )
-        # Spread value of last day of the year across all weeks as 365 / 7 has a rest of 1
-        energy_consumption_by_week += energy_consumption_by_day[364] / 52
-
-        return (
-            np.array(energy_consumption_by_day, dtype=np.float32),
-            energy_consumption_by_week,
-            energy_consumption_by_month,
-        )
 
 
 @dataclass
@@ -132,6 +178,7 @@ class Area:
     n_small_houses: InitVar[int]
     n_medium_houses: InitVar[int]
     n_large_houses: InitVar[int]
+    sun_data: InitVar[pd.DataFrame]
     total_energy_consumption_yearly: np.float32 = field(init=False)
     total_energy_consumption_by_month: npt.NDArray[np.float32] = field(init=False)
     total_energy_consumption_by_week: npt.NDArray[np.float32] = field(init=False)
@@ -142,10 +189,16 @@ class Area:
     avg_energy_consumption_by_day: npt.NDArray[np.float32] = field(init=False)
 
     def __post_init__(
-        self, n_small_houses: int, n_medium_houses: int, n_large_houses: int
+        self,
+        n_small_houses: int,
+        n_medium_houses: int,
+        n_large_houses: int,
+        sun_data: pd.DataFrame,
     ):
         """Calculate total and averages for all houses in the area."""
-        houses = generate_houses(n_small_houses, n_medium_houses, n_large_houses)
+        houses = generate_houses(
+            sun_data, n_small_houses, n_medium_houses, n_large_houses
+        )
         self.total_energy_consumption_yearly = np.float32(
             sum(house.energy_consumption_yearly for house in houses)
         )
@@ -171,7 +224,7 @@ class Area:
         )
 
 
-def _get_csv_data():
+def get_csv_data():
     """
     Process sunhours csv file. The file contains day, sunrise, sunset,
     if summertime, total hours with sunlight, total hours without sunlight.
@@ -202,11 +255,13 @@ def day_algorithm(
     return normalized_squared
 
 
-def generate_houses(small: int, medium: int, large: int) -> List[House]:
+def generate_houses(
+    sun_data: pd.DataFrame, small: int, medium: int, large: int
+) -> List[House]:
     """Generate houses for the dataset."""
-    small_houses = [House(HouseSize.SMALL) for _ in range(small)]
-    medium_houses = [House(HouseSize.MEDIUM) for _ in range(medium)]
-    large_houses = [House(HouseSize.LARGE) for _ in range(large)]
+    small_houses = [House(HouseSize.SMALL, sun_data) for _ in range(small)]
+    medium_houses = [House(HouseSize.MEDIUM, sun_data) for _ in range(medium)]
+    large_houses = [House(HouseSize.LARGE, sun_data) for _ in range(large)]
     return small_houses + medium_houses + large_houses
 
 
@@ -230,3 +285,38 @@ def aggregate_consumption_lists(
         aggregated_values.append(aggregated)
 
     return np.array(aggregated_values, dtype=np.float32)
+
+
+def energy_by_interval(
+    energy_by_day: npt.NDArray[np.float32],
+) -> Tuple[npt.NDArray[np.float32], npt.NDArray[np.float32]]:
+    """
+    Calculate energy consumption/generation for weekly and monthly intervals by splitting
+    it into the respective time interval.
+    ."""
+    days_31 = [0, 2, 4, 6, 7, 9, 11]
+    days_30 = [3, 5, 8, 10]
+    energy_by_week = np.empty(shape=(52), dtype=np.float32)
+    energy_by_month = np.empty(shape=(12), dtype=np.float32)
+    current_day = 0
+    for month in range(12):
+        days = 28
+        if month in days_31:
+            days = 31
+        elif month in days_30:
+            days = 30
+        last_day_of_month = current_day + days
+
+        energy_by_month[month] = sum(energy_by_day[current_day : current_day + days])
+
+        current_day = last_day_of_month
+
+    for week, start_day in enumerate(range(0, 364, 7)):
+        energy_by_week[week] = sum(energy_by_day[start_day : start_day + 7])
+    # Spread value of last day of the year across all weeks as 365 / 7 has a rest of 1
+    energy_by_week += energy_by_day[364] / 52
+
+    return (
+        energy_by_week,
+        energy_by_month,
+    )

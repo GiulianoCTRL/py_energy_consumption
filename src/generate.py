@@ -109,13 +109,12 @@ def fig_compare_interval_by_month(data: npt.NDArray[np.float32], save: bool = Fa
 def fig_temp_diff_stackplot(data: npt.NDArray[np.float32], save: bool = False):
     """Generate stackplot comparing temperature differences."""
     x = np.arange(len(data[0]))
-    y = np.vstack(data)
 
     fig, ax = plt.subplots()
     ax.set_xlabel("månad")
     ax.set_ylabel("kWh")
-    ax.set_title("Månadsförbrukning för olika temperaturer (fjärrvärme)")
-    ax.stackplot(x, y, labels=[str(i) + " °C" for i in range(20, 25)])
+    ax.set_title("Månadsförbrukning för olika temperaturer")
+    ax.stackplot(x, data, labels=[str(i) + " °C" for i in range(20, 25)])
     ax.legend(loc="lower right")
     if save:
         fig.savefig("08monthly_different_temps.png", dpi=500)
@@ -128,7 +127,7 @@ def fig_differences_house_size(
     save: bool = False,
 ):
     """Generate graph with differences in house size."""
-    time_period = ""
+    time_period = ("", "", "")
     if (length := len(data_small)) == 12:
         time_period = ("månad", "month", "09")
     elif length == 52:
@@ -139,7 +138,7 @@ def fig_differences_house_size(
     x = np.arange(len(data_small), dtype=np.int32)
     fig, ax = plt.subplots()
 
-    ax.set_title(f"Skillnader i förbrukning(Samma temp, fjärrvärme) per {time_period[0]}")
+    ax.set_title(f"Skillnader i förbrukning(Samma temp) per {time_period[0]}")
     ax.set_xlabel(time_period[0])
     ax.set_ylabel("kWh")
 

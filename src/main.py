@@ -11,20 +11,34 @@ Available in references.md
 import matplotlib.pyplot as plt
 import numpy as np
 
-from process import Area, House, HouseSize  # pylint: disable=import-error
+from process import Area, House, HouseSize, get_csv_data  # pylint: disable=import-error
 import generate  # pylint: disable=import-error
 
 
 def gen_all_figures(save: bool = False):
     """Generate data and diagrams."""
-    ex_small = House(HouseSize.SMALL, temp=20.0, district_heating=True)
-    ex_medium = House(HouseSize.MEDIUM, temp=20.0, district_heating=True)
-    ex_large = House(HouseSize.LARGE, temp=20.0, district_heating=True)
+    sun_data = get_csv_data()
+    ex_small = House(
+        size=HouseSize.SMALL, sun_data=sun_data, temp=20.0, district_heating=False
+    )
+    ex_medium = House(
+        size=HouseSize.MEDIUM, sun_data=sun_data, temp=20.0, district_heating=False
+    )
+    ex_large = House(
+        size=HouseSize.LARGE, sun_data=sun_data, temp=20.0, district_heating=False
+    )
     temp_diffs_district_heating = [
-        House(HouseSize.SMALL, temp=float(temp), district_heating=True)
+        House(
+            size=HouseSize.SMALL,
+            sun_data=sun_data,
+            temp=float(temp),
+            district_heating=False,
+        )
         for temp in range(20, 25)
     ]
-    area = Area(94, 13, 3)
+    area = Area(
+        n_small_houses=94, n_medium_houses=13, n_large_houses=3, sun_data=sun_data
+    )
     generate.fig_daily_avg(area.avg_energy_consumption_by_day, save)
     generate.fig_monthly_total(area.total_energy_consumption_by_month, save)
     generate.fig_monthly_avg(area.avg_energy_consumption_by_month, save)
