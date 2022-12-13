@@ -10,8 +10,9 @@ It contains functions and classes to process the incoming data.
 References:
 Available in references.md
 """
-from dataclasses import dataclass, field, InitVar
-from enum import Enum
+from dataclasses import asdict, dataclass, field, InitVar
+import json
+from math import sqrt
 import pathlib
 import random
 from typing import List, Tuple
@@ -21,59 +22,117 @@ import numpy.typing as npt
 import pandas as pd
 
 
-class HouseSize(Enum):
-    """House size in square meters for the average house in it's size class."""
+class NumpyEncoder(json.JSONEncoder):
+    """JSON encoder for numpy data."""
 
-    SMALL = 126.0
-    MEDIUM = 216.0
-    LARGE = 330.0
+    def default(self, o):
+        """Default encoder for NumpyEncoder."""
+
+        int_type = (
+            np.int_,
+            np.intc,
+            np.intp,
+            np.int8,
+            np.int16,
+            np.int32,
+            np.int64,
+            np.uint8,
+            np.uint16,
+            np.uint32,
+            np.uint64,
+        )
+        float_type = (np.float_, np.float16, np.float32, np.float64)
+
+        if isinstance(o, int_type):
+            return int(o)
+
+        if isinstance(o, float_type):
+            return float(o)
+
+        if isinstance(o, np.ndarray):
+            return o.tolist()
+
+        return json.JSONEncoder.default(self, o)
+
+
+@dataclass
+class ElectricVehicles:
+    """Estimate power consumption of for electric vehicles."""
+
+    n_vehicles: InitVar[int]
+    consumption_by_day: npt.NDArray[np.float32] = field(init=False)
+    consumption_by_week: npt.NDArray[np.float32] = field(init=False)
+    consumption_by_month: npt.NDArray[np.float32] = field(init=False)
+    consumption_yearly: np.float32 = field(init=False)
+
+    def __post_init__(self, n_vehicles: int):
+        """Estimate electric vehicles power draw (2kWh / 10km)."""
+        # A car drives between 10 and 50 km each day.
+        vehicle_daily_distances = np.random.uniform(1.0, 5.0, size=(n_vehicles))
+        consumption_by_day = np.zeros(shape=(365), dtype=np.float32)
+        for distance in vehicle_daily_distances:
+            consumption_by_day += np.ones(shape=(365), dtype=np.float32) * 2.0 * distance
+        self.consumption_by_day = consumption_by_day
+        (self.consumption_by_week, self.consumption_by_month) = energy_by_interval(
+            self.consumption_by_day
+        )
+        self.consumption_yearly = self.consumption_by_day.sum()
+
+
+@dataclass
+class SawMill:
+    """Estimate SawMills power consumption."""
+
+    cubic_meters: InitVar[float]
+    consumption_by_day: npt.NDArray[np.float32] = field(init=False)
+    consumption_by_week: npt.NDArray[np.float32] = field(init=False)
+    consumption_by_month: npt.NDArray[np.float32] = field(init=False)
+    consumption_yearly: np.float32 = field(init=False)
+
+    def __post_init__(self, cubic_meters: float):
+        """Estimate electric vehicles power draw (2kWh / 10km)."""
+        cons_day = 144.0 * cubic_meters / 365
+        # type: ignore
+        self.consumption_by_day = np.ones(shape=(365), dtype=np.float32) * cons_day
+        (self.consumption_by_week, self.consumption_by_month) = energy_by_interval(
+            self.consumption_by_day
+        )
+        self.consumption_yearly = self.consumption_by_day.sum()
 
 
 @dataclass
 class StreetLights:
     """
     Estimate power consumption of LED, natrium and mercury street lights.
+
+    :param n_lights:    Tuple(amount LED, amount Natrium, amount mercury)
     """
 
-    n_lamps: InitVar[int]
+    n_lights: InitVar[Tuple[int, int, int]]
     sun_data: InitVar[pd.DataFrame]
-    street_light_led_by_day: npt.NDArray[np.float32] = field(init=False)
-    street_light_natrium_by_day: npt.NDArray[np.float32] = field(init=False)
-    street_light_mercury_by_day: npt.NDArray[np.float32] = field(init=False)
-    street_light_led_by_week: npt.NDArray[np.float32] = field(init=False)
-    street_light_natrium_by_week: npt.NDArray[np.float32] = field(init=False)
-    street_light_mercury_by_week: npt.NDArray[np.float32] = field(init=False)
-    street_light_led_by_month: npt.NDArray[np.float32] = field(init=False)
-    street_light_natrium_by_month: npt.NDArray[np.float32] = field(init=False)
-    street_light_mercury_by_month: npt.NDArray[np.float32] = field(init=False)
-    street_light_led_yearly: np.float32 = field(init=False)
-    street_light_natrium_yearly: np.float32 = field(init=False)
-    street_light_mercury_yearly: np.float32 = field(init=False)
+    consumption_by_day: npt.NDArray[np.float32] = field(init=False)
+    consumption_by_week: npt.NDArray[np.float32] = field(init=False)
+    consumption_by_month: npt.NDArray[np.float32] = field(init=False)
+    consumption_yearly: np.float32 = field(init=False)
 
-    def __post_init__(self, sun_data: pd.DataFrame, n_lamps: int):
-        """Estimate street light power consumption."""
+    def __post_init__(self, n_lights: Tuple[int, int, int], sun_data: pd.DataFrame):
+        """
+        Estimate street light power consumption.
+
+        :param n_lights:    Tuple(amount LED, amount Natrium, amount mercury)
+        """
         night_hours_by_day = sun_data["Nighttime"].to_numpy(dtype=np.float32) / 60.0
-        led_cons: np.float32 = 0.05 * n_lamps  # type: ignore
-        natrium_cons: np.float32 = 0.25 * n_lamps  # type: ignore
-        mercury_cons: np.float32 = 1.00 * n_lamps  # type: ignore
-        self.street_light_led_by_day = night_hours_by_day * led_cons
-        self.street_light_natrium_by_day = night_hours_by_day * natrium_cons
-        self.street_light_mercury_by_day = night_hours_by_day * mercury_cons
+        cons_lamps: Tuple[float, float, float] = (
+            0.05 * n_lights[0],
+            0.25 * n_lights[1],
+            1.00 * n_lights[2],
+        )  # type: ignore
+        self.consumption_by_day = night_hours_by_day * sum(cons_lamps)  # type: ignore
         (
-            self.street_light_led_by_week,
-            self.street_light_led_by_month,
-        ) = energy_by_interval(self.street_light_led_by_day)
-        (
-            self.street_light_natrium_by_week,
-            self.street_light_natrium_by_month,
-        ) = energy_by_interval(self.street_light_natrium_by_day)
-        (
-            self.street_light_mercury_by_week,
-            self.street_light_mercury_by_month,
-        ) = energy_by_interval(self.street_light_mercury_by_day)
-        self.street_light_led_yearly = self.street_light_led_by_day.sum()
-        self.street_light_natrium_yearly = self.street_light_natrium_by_day.sum()
-        self.street_light_mercury_yearly = self.street_light_mercury_by_day.sum()
+            self.consumption_by_week,
+            self.consumption_by_month,
+        ) = energy_by_interval(self.consumption_by_day)
+        self.consumption_yearly = self.consumption_by_day.sum()
 
 
 @dataclass
@@ -81,29 +140,39 @@ class SolarPanels:
     """
     Power generation and consumption for solar panels, electric vehicles and
     street lights.
+
+    :param n_panels:        Tuple(amount 5kW panels, amount 15kW panels)
     """
 
-    n_solar_5_panels: InitVar[int]
-    n_solar_15_panels: InitVar[int]
+    n_panels: InitVar[Tuple[int, int]]
     sun_data: InitVar[pd.DataFrame]
-    solar_energy_generation_by_day: npt.NDArray[np.float32] = field(init=False)
-    solar_energy_generation_by_week: npt.NDArray[np.float32] = field(init=False)
-    solar_energy_generation_by_month: npt.NDArray[np.float32] = field(init=False)
-    solar_energy_generation_yearly: np.float32 = field(init=False)
+    generation_by_day: npt.NDArray[np.float32] = field(init=False)
+    generation_by_week: npt.NDArray[np.float32] = field(init=False)
+    generation_by_month: npt.NDArray[np.float32] = field(init=False)
+    generation_yearly: np.float32 = field(init=False)
 
     def __post_init__(
-        self, sun_data: pd.DataFrame, n_solar_5_panels: int, n_solar_15_panels: int
+        self,
+        n_panels: Tuple[int, int],
+        sun_data: pd.DataFrame,
     ):
-        """Estimate solar power production."""
-        sun_hours_by_day = sun_data["Daytime"].to_numpy(dtype=np.float32) / 60.0
-        self.solar_energy_generation_by_day = sun_hours_by_day * (
-            5.0 * n_solar_5_panels + 15.0 * n_solar_15_panels
+        """
+        Estimate solar power production.
+
+        :param n_panels:        Tuple(amount 5kW panels, amount 15kW panels)
+        """
+        sun_hours_by_day: npt.NDArray[np.float32] = (
+            sun_data["Daytime"].to_numpy(dtype=np.float32) / 60.0
+        )
+        # 20 % effectivness
+        self.generation_by_day = (
+            sun_hours_by_day * 0.20 * (5.0 * n_panels[0] + 15.0 * n_panels[1])
         )
         (
-            self.solar_energy_generation_by_week,
-            self.solar_energy_generation_by_month,
-        ) = energy_by_interval(self.solar_energy_generation_by_day)
-        self.solar_energy_generation_by_yearly = self.solar_energy_generation_by_day.sum()
+            self.generation_by_week,
+            self.generation_by_month,
+        ) = energy_by_interval(self.generation_by_day)
+        self.generation_yearly = self.generation_by_day.sum()
 
 
 @dataclass
@@ -113,48 +182,45 @@ class House:
     house. All energy consumbtion values are represented in kWh.
     """
 
-    size: HouseSize
+    size: InitVar[float]
     sun_data: InitVar[pd.DataFrame]
+    district_heating_chance: InitVar[float]
     temp: InitVar[np.float32] = 0.0
-    district_heating: InitVar[bool] = False
-    energy_consumption_yearly: np.float32 = field(init=False)
-    energy_consumption_by_month: npt.NDArray[np.float32] = field(init=False)
-    energy_consumption_by_week: npt.NDArray[np.float32] = field(init=False)
-    energy_consumption_by_day: npt.NDArray[np.float32] = field(init=False)
+    consumption_yearly: np.float32 = field(init=False)
+    consumption_by_month: npt.NDArray[np.float32] = field(init=False)
+    consumption_by_week: npt.NDArray[np.float32] = field(init=False)
+    consumption_by_day: npt.NDArray[np.float32] = field(init=False)
 
     def __post_init__(
-        self, sun_data: pd.DataFrame, temp: np.float32, district_heating: bool
+        self,
+        size: np.float32,
+        sun_data: pd.DataFrame,
+        district_heating_chance: float,
+        temp: np.float32,
     ):
         """Randomize temperature range and type of heating used for each house."""
-        # Properties with district heating [1]
-        w_dist_heating = 4000.0
-        # All households in Sundsvall [4] ansuming that about 20% of the population
-        # live in central Sundsvall [2]or apartments and therefore count as less properties
-        p_sundsvall = 48137.0 * 0.8
-        district_heating = (
-            True
-            if district_heating
-            else bool(random.random() <= (w_dist_heating / p_sundsvall))
-        )
+        district_heating = bool(random.random() < district_heating_chance)
         if not temp and not district_heating:
             temp = np.random.uniform(20.0, 25.0)  # type: ignore
         # If district heating room temperature is not affecting consumption
         elif not temp and district_heating:
-            temp: np.float32 = 21.0
+            temp = np.float32(21.0)
 
-        self.energy_consumption_yearly = self._energy_consumption_yearly(
+        self.consumption_yearly = self._energy_consumption_yearly(
+            size,
             temp,
             district_heating,
         )
-        self.energy_consumption_by_day = day_algorithm(
-            self.energy_consumption_yearly, sun_data
+        self.consumption_by_day = day_algorithm(
+            self.consumption_yearly, sun_data, heating=district_heating
         )
-        cons_week, cons_month = energy_by_interval(self.energy_consumption_by_day)
-        self.energy_consumption_by_week = cons_week
-        self.energy_consumption_by_month = cons_month
+        (
+            self.consumption_by_week,
+            self.consumption_by_month,
+        ) = energy_by_interval(self.consumption_by_day)
 
     def _energy_consumption_yearly(
-        self, temp: np.float32, district_heating: bool
+        self, size: np.float32, temp: np.float32, district_heating: bool
     ) -> np.float32:
         """
         Calculate yearly energy consumption by evaluating size, if district heating
@@ -163,65 +229,109 @@ class House:
         # District heating saves up to 75% of the consumed energy
         # (in comparison to heating through direct electricity) [3]
         # Formula for energy consumption by size and heating type [5][7]
-        yearl_energy_consumption = self.size.value * (40.0 if district_heating else 120.0)
+        yearl_energy_consumption = size * (40.0 if district_heating else 120.0)
         # Energy consumption can be decreased/incread by 5% per 1°C deviation 21 °C [6]
-        percent: np.float32 = 0.05  # type: ignore
-        avg_room_temp: np.float32 = 21.0  # type: ignore
-        variation = yearl_energy_consumption * (percent * (temp - avg_room_temp))
+        variation = yearl_energy_consumption * (0.05 * (temp - 21.0))  # type: ignore
         return np.float32(yearl_energy_consumption + variation)
 
 
 @dataclass
-class Area:
-    """Energy consumption for specific Area."""
+class PrivateProperties:
+    """
+    Energy consumption for specific private properties.
 
-    n_small_houses: InitVar[int]
-    n_medium_houses: InitVar[int]
-    n_large_houses: InitVar[int]
+    :param houses:      Tuple((size, amount), (size, amount), (size, amount))
+
+    """
+
+    house_data: InitVar[Tuple[Tuple[float, int], Tuple[float, int], Tuple[float, int]]]
+    district_heating_chance: InitVar[float]
     sun_data: InitVar[pd.DataFrame]
-    total_energy_consumption_yearly: np.float32 = field(init=False)
-    total_energy_consumption_by_month: npt.NDArray[np.float32] = field(init=False)
-    total_energy_consumption_by_week: npt.NDArray[np.float32] = field(init=False)
-    total_energy_consumption_by_day: npt.NDArray[np.float32] = field(init=False)
-    avg_energy_consumption_yearly: np.float32 = field(init=False)
-    avg_energy_consumption_by_month: npt.NDArray[np.float32] = field(init=False)
-    avg_energy_consumption_by_week: npt.NDArray[np.float32] = field(init=False)
-    avg_energy_consumption_by_day: npt.NDArray[np.float32] = field(init=False)
+    consumption_yearly: np.float32 = field(init=False)
+    consumption_by_month: npt.NDArray[np.float32] = field(init=False)
+    consumption_by_week: npt.NDArray[np.float32] = field(init=False)
+    consumption_by_day: npt.NDArray[np.float32] = field(init=False)
+    peak_consumption: np.float32 = field(init=False)
+    n_houses: int = field(init=False)
 
     def __post_init__(
         self,
-        n_small_houses: int,
-        n_medium_houses: int,
-        n_large_houses: int,
+        house_data: Tuple[Tuple[float, int], Tuple[float, int], Tuple[float, int]],
+        district_heating_chance: float,
         sun_data: pd.DataFrame,
     ):
         """Calculate total and averages for all houses in the area."""
-        houses = generate_houses(
-            sun_data, n_small_houses, n_medium_houses, n_large_houses
+        houses: List[House] = generate_houses(
+            sun_data=sun_data,
+            house_data=house_data,
+            district_heating_chance=district_heating_chance,
         )
-        self.total_energy_consumption_yearly = np.float32(
-            sum(house.energy_consumption_yearly for house in houses)
+        self.n_houses = len(houses)
+        self.consumption_yearly = np.float32(
+            sum(house.consumption_yearly for house in houses)
         )
-        self.total_energy_consumption_by_month = aggregate_consumption_lists(12, houses)
-        self.total_energy_consumption_by_week = aggregate_consumption_lists(52, houses)
-        self.total_energy_consumption_by_day = aggregate_consumption_lists(365, houses)
-        self.avg_energy_consumption_yearly = np.float32(
-            self.total_energy_consumption_yearly / len(houses)
+        self.consumption_by_month = aggregate_consumption_lists(12, houses)
+        self.consumption_by_week = aggregate_consumption_lists(52, houses)
+        self.consumption_by_day = aggregate_consumption_lists(365, houses)
+
+        # Velanders konstant category EL350 [9]
+        vel_el350 = (0.000314, 0.086054)
+        self.peak_consumption = vel_el350[0] * self.consumption_yearly + vel_el350[
+            1
+        ] * sqrt(self.consumption_yearly)
+
+
+@dataclass
+class Tunadal:
+    """Aggregate data for tunadals area."""
+
+    properties: PrivateProperties
+    vehicles: ElectricVehicles
+    lights: StreetLights
+    sawmill: SawMill
+    solar: SolarPanels
+    consumption_yearly: np.float32 = field(init=False)
+    consumption_by_month: npt.NDArray[np.float32] = field(init=False)
+    consumption_by_week: npt.NDArray[np.float32] = field(init=False)
+    consumption_by_day: npt.NDArray[np.float32] = field(init=False)
+    consumption_yearly_no_sawmill: np.float32 = field(init=False)
+    consumption_by_month_no_sawmill: npt.NDArray[np.float32] = field(init=False)
+    consumption_by_week_no_sawmill: npt.NDArray[np.float32] = field(init=False)
+    consumption_by_day_no_sawmill: npt.NDArray[np.float32] = field(init=False)
+
+    def __post_init__(self):
+        """Calculate aggregated values for tunadals area."""
+        self.consumption_by_day_no_sawmill = (
+            self.properties.consumption_by_day
+            + self.vehicles.consumption_by_day
+            + self.lights.consumption_by_day
+            - self.solar.generation_by_day
         )
-        self.avg_energy_consumption_by_month = np.array(
-            [i / len(houses) for i in self.total_energy_consumption_by_month],
-            dtype=np.float32,
+        (
+            self.consumption_by_week_no_sawmill,
+            self.consumption_by_month_no_sawmill,
+        ) = energy_by_interval(self.consumption_by_day_no_sawmill)
+        self.consumption_yearly_no_sawmill = self.consumption_by_day_no_sawmill.sum()
+        self.consumption_by_day = (
+            self.consumption_by_day_no_sawmill + self.sawmill.consumption_by_day
+        )
+        self.consumption_by_week = (
+            self.consumption_by_week_no_sawmill + self.sawmill.consumption_by_week
+        )
+        self.consumption_by_month = (
+            self.consumption_by_month_no_sawmill + self.sawmill.consumption_by_month
+        )
+        self.consumption_yearly = (
+            self.consumption_yearly_no_sawmill + self.sawmill.consumption_yearly
         )
 
-        self.avg_energy_consumption_by_week = np.array(
-            [i / len(houses) for i in self.total_energy_consumption_by_week],
-            dtype=np.float32,
-        )
+    def to_dict(self):
+        """Represent data as dict."""
+        return asdict(self)
 
-        self.avg_energy_consumption_by_day = np.array(
-            [i / len(houses) for i in self.total_energy_consumption_by_day],
-            dtype=np.float32,
-        )
+    def to_json(self):
+        """Represent data as json."""
+        return json.dumps(self.to_dict(), indent=4, cls=NumpyEncoder)
 
 
 def get_csv_data():
@@ -242,12 +352,15 @@ def get_csv_data():
 
 
 def day_algorithm(
-    yearly_cons: np.float32, sun_data: pd.DataFrame
+    yearly_cons: np.float32, sun_data: pd.DataFrame, heating: bool = True
 ) -> npt.NDArray[np.float32]:
     """Calculate energy consumption per day from total yearly consumption."""
     total_yearly_nighttime = sun_data["Nighttime"].sum()
     nighttime_per_day = sun_data["Nighttime"].to_numpy(dtype=np.float32)
-    modifiers = nighttime_per_day * 10 / total_yearly_nighttime
+
+    # Fluctuations in temperature affect households with district heating less
+    heat_modifier = 100 if heating else 50
+    modifiers = nighttime_per_day * heat_modifier / total_yearly_nighttime
     vector = np.random.uniform(0.98, 1.02, size=(365)) + modifiers
     normalized_vector = vector / np.linalg.norm(vector)
     # Sum of squared values in a normalized vector is = 1
@@ -256,13 +369,22 @@ def day_algorithm(
 
 
 def generate_houses(
-    sun_data: pd.DataFrame, small: int, medium: int, large: int
+    sun_data: pd.DataFrame,
+    house_data: Tuple[Tuple[float, int], Tuple[float, int], Tuple[float, int]],
+    district_heating_chance: float,
 ) -> List[House]:
     """Generate houses for the dataset."""
-    small_houses = [House(HouseSize.SMALL, sun_data) for _ in range(small)]
-    medium_houses = [House(HouseSize.MEDIUM, sun_data) for _ in range(medium)]
-    large_houses = [House(HouseSize.LARGE, sun_data) for _ in range(large)]
-    return small_houses + medium_houses + large_houses
+    house_list = []
+    for (size, amount) in house_data:
+        house_list += [
+            House(
+                size=size,
+                sun_data=sun_data,
+                district_heating_chance=district_heating_chance,
+            )
+            for _ in range(amount)
+        ]
+    return house_list
 
 
 def aggregate_consumption_lists(
@@ -277,11 +399,11 @@ def aggregate_consumption_lists(
         aggregated = 0.0
         for house in house_list:
             if target_length == 12:
-                aggregated += house.energy_consumption_by_month[interval]
+                aggregated += house.consumption_by_month[interval]
             elif target_length == 52:
-                aggregated += house.energy_consumption_by_week[interval]
+                aggregated += house.consumption_by_week[interval]
             else:
-                aggregated += house.energy_consumption_by_day[interval]
+                aggregated += house.consumption_by_day[interval]
         aggregated_values.append(aggregated)
 
     return np.array(aggregated_values, dtype=np.float32)

@@ -21,4 +21,4 @@ License: TBD
 | [6] | Vattenfall | Så kan du minska värmekostnaden | Vattenfall | 2022 | Online | https://www.vattenfall.se/fokus/tips-rad/minska-varmekostnaden/ |  23 11 2022 |
 | [7] | Hemsol | Normal Elförbrukning för Villor | Hemsol | 16 11 2022 | Online | https://hemsol.se/solceller/elforbrukning-villa/ |  29 11 2022 |
 | [8] | Injosoft | Solens upp- och nedgång » Sundsvall » 2021 | Injosoft | 2021 21 31 | Online | https://www.dinstartsida.se/solen-ort.asp?id=1710&year=2021 | 06 12 2022 |
-
+| [9] | Persson, Erik; Jonsson, Patrik | Utvärdering av velanders forml för toppeffektberäkning i eldistributionsnät | - | 2018 06 11 | Online | http://www.diva-portal.org/smash/get/diva2:1223815/FULLTEXT01.pdf | 2022-12-12 |
