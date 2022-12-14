@@ -212,7 +212,7 @@ class House:
             district_heating,
         )
         self.consumption_by_day = day_algorithm(
-            self.consumption_yearly, sun_data, heating=district_heating
+            self.consumption_yearly, sun_data, district_heating=district_heating
         )
         (
             self.consumption_by_week,
@@ -352,14 +352,14 @@ def get_csv_data():
 
 
 def day_algorithm(
-    yearly_cons: np.float32, sun_data: pd.DataFrame, heating: bool = True
+    yearly_cons: np.float32, sun_data: pd.DataFrame, district_heating: bool = True
 ) -> npt.NDArray[np.float32]:
     """Calculate energy consumption per day from total yearly consumption."""
     total_yearly_nighttime = sun_data["Nighttime"].sum()
     nighttime_per_day = sun_data["Nighttime"].to_numpy(dtype=np.float32)
 
     # Fluctuations in temperature affect households with district heating less
-    heat_modifier = 100 if heating else 50
+    heat_modifier = 100 if not district_heating else 50
     modifiers = nighttime_per_day * heat_modifier / total_yearly_nighttime
     vector = np.random.uniform(0.98, 1.02, size=(365)) + modifiers
     normalized_vector = vector / np.linalg.norm(vector)
