@@ -231,7 +231,7 @@ def main(save: bool):
     tunadal_figures(data=data[1], exclude=exclude, prefix="[2027] ", save=save)
     tunadal_figures(data=data[2], exclude=exclude, prefix="[2032] ", save=save)
 
-    pathlib.Path("data_now.json").write_text(data[0].to_json(), encoding="utf-8")
+    pathlib.Path("data_2022.json").write_text(data[0].to_json(), encoding="utf-8")
     pathlib.Path("data_2027.json").write_text(data[1].to_json(), encoding="utf-8")
     pathlib.Path("data_2032.json").write_text(data[2].to_json(), encoding="utf-8")
     plt.show()
