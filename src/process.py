@@ -234,6 +234,14 @@ class House:
         variation = yearl_energy_consumption * (0.05 * (temp - 21.0))  # type: ignore
         return np.float32(yearl_energy_consumption + variation)
 
+    def to_dict(self):
+        """Represent data as dict."""
+        return asdict(self)
+
+    def to_json(self):
+        """Represent data as json."""
+        return json.dumps(self.to_dict(), indent=4, cls=NumpyEncoder)
+
 
 @dataclass
 class PrivateProperties:

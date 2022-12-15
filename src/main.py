@@ -8,6 +8,7 @@ course W0021T - Mekanik och Elkraftteknik.
 References:
 Available in references.md
 """
+import json
 import pathlib
 from typing import List, Tuple
 
@@ -71,19 +72,11 @@ def gen_tunadal_data(sun_data: pd.DataFrame) -> Tuple[Tunadal, Tunadal, Tunadal]
     return tunadal_now, tunadal_5_years, tunadal_10_years
 
 
-def single_house_figures(
-    sun_data: pd.DataFrame, save: bool = False, prefix: str = "[2022] "
-):
+def single_house_figures(sun_data: pd.DataFrame, save: bool = False, prefix: str = ""):
     """Generate figures for individual examples."""
-    ex_small = House(
-        size=126.0, sun_data=sun_data, district_heating_chance=0.0, temp=20.0
-    )
-    ex_medium = House(
-        size=216.0, sun_data=sun_data, district_heating_chance=0.0, temp=20.0
-    )
-    ex_large = House(
-        size=330.0, sun_data=sun_data, district_heating_chance=0.0, temp=20.0
-    )
+    small = House(size=126.0, sun_data=sun_data, district_heating_chance=0.0, temp=20.0)
+    medium = House(size=216.0, sun_data=sun_data, district_heating_chance=0.0, temp=20.0)
+    large = House(size=330.0, sun_data=sun_data, district_heating_chance=0.0, temp=20.0)
     temp_diffs_heating = [
         House(
             size=126.0,
@@ -94,9 +87,9 @@ def single_house_figures(
         for temp in range(20, 25)
     ]
     generate.fig_differences_house_size(
-        ex_small.consumption_by_month,
-        ex_medium.consumption_by_month,
-        ex_large.consumption_by_month,
+        small.consumption_by_month,
+        medium.consumption_by_month,
+        large.consumption_by_month,
         save,
         prefix=prefix,
     )
@@ -105,6 +98,20 @@ def single_house_figures(
         save,
         prefix=prefix,
     )
+    if save:
+        pathlib.Path("data_small_house.json").write_text(
+            small.to_json(), encoding="utf-8"
+        )
+        pathlib.Path("data_medium_house.json").write_text(
+            medium.to_json(), encoding="utf-8"
+        )
+        pathlib.Path("data_large_house.json").write_text(
+            large.to_json(), encoding="utf-8"
+        )
+        pathlib.Path("data_heating_diff_temps.json").write_text(
+            json.dumps([i.to_json() for i in temp_diffs_heating], indent=4),
+            encoding="utf-8",
+        )
 
 
 def future_figures(
@@ -208,7 +215,6 @@ def tunadal_figures(
 def main(save: bool):
     """Run all functions."""
     sun_data = get_csv_data()
-    single_house_figures(sun_data)
     data = gen_tunadal_data(sun_data)
     exclude = [
         "daily_avg",
@@ -219,10 +225,11 @@ def main(save: bool):
         "over_interval",
     ]
 
+    single_house_figures(sun_data, save, prefix="[2022] ")
+    future_figures(data, save, "[2022 vs 2027 vs 2032] ")
     tunadal_figures(data=data[0], exclude=[], prefix="[2022] ", save=save)
     tunadal_figures(data=data[1], exclude=exclude, prefix="[2027] ", save=save)
     tunadal_figures(data=data[2], exclude=exclude, prefix="[2032] ", save=save)
-    future_figures(data, save, "[2022 vs 2027 vs 2032] ")
 
     pathlib.Path("data_now.json").write_text(data[0].to_json(), encoding="utf-8")
     pathlib.Path("data_2027.json").write_text(data[1].to_json(), encoding="utf-8")

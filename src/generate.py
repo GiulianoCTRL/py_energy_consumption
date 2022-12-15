@@ -213,7 +213,10 @@ def fig_stack_all_but_sawmill_by_interval(
     ax.legend()
     if save:
         fig.savefig(
-            "graphs/" + prefix + f"{interval[4]}_Households_street_solar_{interval[3]}.png", dpi=500
+            "graphs/"
+            + prefix
+            + f"{interval[4]}_Households_street_solar_{interval[3]}.png",
+            dpi=500,
         )
 
 
@@ -241,7 +244,9 @@ def fig_compare_all_data(
     ax_kwh.plot(x, data[0], linewidth=2, label="Fastigheter (kWh)", color="green")
     ax_kwh.plot(x, data[1], linewidth=2, label="Elbil (kWh)", color="blue")
     ax_kwh.plot(x, data[2], linewidth=2, label="Gatubelysning (kWh)", color="orange")
-    ax_kwh.plot(x, data[4], linewidth=2, label="Solarkraft (genererad) (kWh)", color="purple")
+    ax_kwh.plot(
+        x, data[4], linewidth=2, label="Solarkraft (genererad) (kWh)", color="purple"
+    )
     ax_mwh = ax_kwh.twinx()
     ax_mwh.set_ylabel("MWh")
     ax_mwh.plot(x, data[3] / 1000, linewidth=2, label="Sågverk (MWh)", color="red")
@@ -283,7 +288,9 @@ def fig_plot_compare_now_with_future(
     """
     fig, ax = plt.subplots()
     x = np.arange(len(data[0]))
-    ax.set_title(prefix + "Energiförbrukning i privata sektorn per vecka jämfört med framtiden")
+    ax.set_title(
+        prefix + "Energiförbrukning i privata sektorn per vecka jämfört med framtiden"
+    )
     ax.set_ylabel("kWh")
     ax.set_xlabel("Vecka")
 
