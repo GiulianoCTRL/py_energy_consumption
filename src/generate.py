@@ -42,7 +42,7 @@ def fig_monthly_total(
     x = np.arange(12, dtype=np.int32)
     fig, ax = plt.subplots()
 
-    ax.set_title(prefix + "Elförbrukning total per månad")
+    ax.set_title(prefix + "Elförbrukning total per månad (villor)")
     ax.set_xlabel("Månad")
     ax.set_ylabel("kWh")
 
@@ -204,12 +204,12 @@ def fig_stack_all_but_sawmill_by_interval(
     elif len(data[0]) == 52:
         interval = (53, "Veckovis", "vecka", "weekly", 15)
     x = np.arange(1, interval[0], dtype=np.int32)
-    ax.set_title(prefix + f"{interval[1]} Solarkraft & Hushåll & Elbil & Gatubelysning.")
+    ax.set_title(prefix + f"{interval[1]} solkraft & Hushåll & Elbil & Gatubelysning.")
     ax.set_ylabel("kWh")
     ax.set_xlabel(interval[2])
 
     ax.stackplot(x, data[1:4], labels=["Hushåll", "Elbil", "Gatubelysning"])
-    ax.plot(x, data[0], linewidth=3, color="red", label="solarkraft (genererad)")
+    ax.plot(x, data[0], linewidth=3, color="red", label="solkraft (genererad)")
     ax.legend()
     if save:
         fig.savefig(
@@ -245,7 +245,7 @@ def fig_compare_all_data(
     ax_kwh.plot(x, data[1], linewidth=2, label="Elbil (kWh)", color="blue")
     ax_kwh.plot(x, data[2], linewidth=2, label="Gatubelysning (kWh)", color="orange")
     ax_kwh.plot(
-        x, data[4], linewidth=2, label="Solarkraft (genererad) (kWh)", color="purple"
+        x, data[4], linewidth=2, label="solkraft (genererad) (kWh)", color="purple"
     )
     ax_mwh = ax_kwh.twinx()
     ax_mwh.set_ylabel("MWh")

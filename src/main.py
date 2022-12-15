@@ -67,7 +67,7 @@ def gen_tunadal_data(sun_data: pd.DataFrame) -> Tuple[Tunadal, Tunadal, Tunadal]
         vehicles=ElectricVehicles(n_vehicles=145),
         lights=StreetLights(n_lights=(240, 0, 0), sun_data=sun_data),
         sawmill=SawMill(cubic_meters=1_059_000.0 * 0.8),  # Assuming 20% more efficient
-        solar=SolarPanels(n_panels=(33, 3), sun_data=sun_data),
+        solar=SolarPanels(n_panels=(33, 33), sun_data=sun_data),
     )
     return tunadal_now, tunadal_5_years, tunadal_10_years
 
@@ -219,7 +219,6 @@ def main(save: bool):
     exclude = [
         "daily_avg",
         "daily_total",
-        "monthly_total",
         "compare_by_week",
         "compare_by_month",
         "over_interval",
